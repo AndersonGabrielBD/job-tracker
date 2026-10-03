@@ -2,7 +2,7 @@ import json
 import os
 
 import boto3
-from job_radar_common import dynamo, location, matching, sources
+from job_radar_common import dynamo, location, matching, seniority, sources
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 TTL_DAYS = int(os.environ.get("TTL_DAYS", "50"))
@@ -83,24 +83,35 @@ def handler(event, context):
     raw_jobs, fetch_counts = _fetch_all(config)
     print(f"[harvester] ({run}) fetched: {fetch_counts}")
 
-    in_scope = [job for job in raw_jobs if location.is_in_scope(job)]
-    print(f"[harvester] ({run}) {len(in_scope)}/{len(raw_jobs)} jobs passed the location gate")
+    in_scope = [
+        job for job in raw_jobs
+        if location.is_in_scope(job) and not seniority.is_senior(job.get("title"))
+    ]
+    print(f"[harvester] ({run}) {len(in_scope)}/{len(raw_jobs)} jobs passed the location/seniority gate")
 
     existing_ids = dynamo.filter_existing_ids(TABLE_NAME, (job["job_id"] for job in in_scope))
     new_jobs = [job for job in in_scope if job["job_id"] not in existing_ids]
     print(f"[harvester] ({run}) {len(new_jobs)} new jobs (already seen: {len(existing_ids)})")
 
+    # Jobs with zero keyword overlap are pure noise (no stack signal at all)
+    # -- skip writing them. They'll just get rescored next run, which is
+    # fine since scoring is free (no LLM involved).
+    scored_jobs = []
     for job in new_jobs:
         score, matched_keywords = matching.score_job(job, config["keywords"])
+        if score <= 0:
+            continue
         job["match_score"] = score
         job["matched_keywords"] = matched_keywords
+        scored_jobs.append(job)
 
-    dynamo.write_jobs(TABLE_NAME, new_jobs, ttl_seconds=TTL_DAYS * 86400)
-    print(f"[harvester] ({run}) wrote {len(new_jobs)} jobs")
+    dynamo.write_jobs(TABLE_NAME, scored_jobs, ttl_seconds=TTL_DAYS * 86400)
+    print(f"[harvester] ({run}) wrote {len(scored_jobs)} jobs ({len(new_jobs) - len(scored_jobs)} dropped for zero score)")
 
     return {
         "run": run,
         "fetched": fetch_counts,
         "in_scope": len(in_scope),
         "new": len(new_jobs),
+        "written": len(scored_jobs),
     }

@@ -15,9 +15,18 @@ HTTP_TIMEOUT = 15
 
 REMOTE_TEXT_HINTS = ("remote", "remoto", "home office", "home-office", "anywhere", "worldwide")
 
-# Portuguese search terms used against Gupy/Jooble, which index mostly
-# Brazilian/Portuguese-language postings.
-PT_SEARCH_TERMS = ("desenvolvedor", "engenheiro de software", "backend")
+# Search terms used against Gupy/Jooble/Adzuna. Deliberately narrow and
+# stack-specific -- generic terms like "desenvolvedor"/"backend" pull in
+# every Java/.NET/PHP/Salesforce/Delphi posting on the board. Python is the
+# primary focus, with data engineering and React/JS as secondary interests.
+STACK_SEARCH_TERMS = (
+    "python",
+    "engenheiro de dados",
+    "data engineer",
+    "desenvolvedor react",
+    "desenvolvedor javascript",
+)
+ADZUNA_WHAT_OR = "python engenheiro-de-dados data-engineer react javascript"
 
 
 def _get_json(url, headers=None):
@@ -97,15 +106,17 @@ def fetch_arbeitnow():
     return jobs
 
 
-def fetch_adzuna(app_id, app_key, what="python"):
+def fetch_adzuna(app_id, app_key, what_or=ADZUNA_WHAT_OR):
     """Two queries: one broad search across Brazil (remote detected via text
-    heuristics) and one scoped to Maceio (structured location filter)."""
+    heuristics) and one scoped to Maceio (structured location filter).
+    `what_or` OR-matches each space-separated term (verified live against
+    the Adzuna API -- hyphenate multi-word terms to keep them as one term)."""
     jobs = []
     base = "https://api.adzuna.com/v1/api/jobs/br/search/1"
     common = {
         "app_id": app_id,
         "app_key": app_key,
-        "what": what,
+        "what_or": what_or,
         "results_per_page": "50",
         "content-type": "application/json",
     }
@@ -181,8 +192,8 @@ def fetch_gupy():
     jobs = []
     seen_ids = set()
     queries = (
-        [{"jobName": term, "workplaceType": "remote", "limit": "30"} for term in PT_SEARCH_TERMS]
-        + [{"jobName": term, "city": "Maceió", "limit": "30"} for term in PT_SEARCH_TERMS]
+        [{"jobName": term, "workplaceType": "remote", "limit": "30"} for term in STACK_SEARCH_TERMS]
+        + [{"jobName": term, "city": "Maceió", "limit": "30"} for term in STACK_SEARCH_TERMS]
     )
     for params in queries:
         for job in _fetch_gupy_query(params):
@@ -197,7 +208,7 @@ def fetch_jooble(api_key):
     url = f"https://jooble.org/api/{api_key}"
     jobs = []
     seen_ids = set()
-    for term in PT_SEARCH_TERMS + ("python", "backend"):
+    for term in STACK_SEARCH_TERMS:
         try:
             # Jooble's location matcher wants the English country name --
             # "Brasil" silently matches nothing, "Brazil" works.

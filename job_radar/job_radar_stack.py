@@ -31,8 +31,9 @@ DEFAULT_STACK_KEYWORDS = [
     "python", "flask", "fastapi", "django",
     "aws", "lambda", "ecs", "fargate", "sqs", "eventbridge", "s3", "cloudwatch",
     "celery", "polars", "pandas", "numpy",
-    "postgresql", "mysql", "supabase", "redis", "sqlalchemy",
-    "react", "next.js", "tailwind",
+    "postgresql", "mysql", "supabase", "redis", "sqlalchemy", "sql", "etl",
+    "data engineer", "data engineering", "data pipeline",
+    "react", "next.js", "tailwind", "javascript", "typescript",
     "docker", "github actions", "pytest", "ci/cd",
     "backend", "rest api", "microservices",
 ]
