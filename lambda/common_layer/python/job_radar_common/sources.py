@@ -199,8 +199,11 @@ def fetch_jooble(api_key):
     seen_ids = set()
     for term in PT_SEARCH_TERMS + ("python", "backend"):
         try:
-            data = _post_json(url, {"keywords": term, "location": "Brasil"})
-        except urllib.error.HTTPError:
+            # Jooble's location matcher wants the English country name --
+            # "Brasil" silently matches nothing, "Brazil" works.
+            data = _post_json(url, {"keywords": term, "location": "Brazil"})
+        except urllib.error.HTTPError as exc:
+            print(f"[sources] jooble term={term!r} failed: HTTP {exc.code}")
             continue
         for raw in data.get("jobs", []):
             external_id = raw.get("id") or raw.get("link")

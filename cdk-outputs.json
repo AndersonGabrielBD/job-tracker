@@ -1,0 +1,6 @@
+{
+  "JobRadarStack": {
+    "DeployRoleArn": "arn:aws:iam::899354270212:role/github-actions-cdk-deploy-job-radar",
+    "DashboardUrl": "https://szx77kbookjvvzg4jfr7fmou7i0kmsut.lambda-url.us-east-1.on.aws/"
+  }
+}
