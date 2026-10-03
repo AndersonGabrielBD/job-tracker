@@ -21,12 +21,12 @@ REMOTE_TEXT_HINTS = ("remote", "remoto", "home office", "home-office", "anywhere
 # primary focus, with data engineering and React/JS as secondary interests.
 STACK_SEARCH_TERMS = (
     "python",
+    "python backend",
     "engenheiro de dados",
     "data engineer",
     "desenvolvedor react",
-    "desenvolvedor javascript",
 )
-ADZUNA_WHAT_OR = "python engenheiro-de-dados data-engineer react javascript"
+ADZUNA_WHAT_OR = "python python-backend engenheiro-de-dados data-engineer react"
 
 
 def _get_json(url, headers=None):

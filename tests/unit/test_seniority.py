@@ -14,6 +14,10 @@ def test_rejects_sr_abbreviation():
     assert is_senior("Desenvolvedor Backend Sr.")
 
 
+def test_rejects_especialista():
+    assert is_senior("Desenvolvedor Fullstack Especialista I")
+
+
 def test_accepts_pleno_and_junior():
     assert not is_senior("Desenvolvedor Python Pleno")
     assert not is_senior("Junior Python Developer")

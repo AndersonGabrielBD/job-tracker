@@ -93,20 +93,23 @@ def handler(event, context):
     new_jobs = [job for job in in_scope if job["job_id"] not in existing_ids]
     print(f"[harvester] ({run}) {len(new_jobs)} new jobs (already seen: {len(existing_ids)})")
 
-    # Jobs with zero keyword overlap are pure noise (no stack signal at all)
-    # -- skip writing them. They'll just get rescored next run, which is
-    # fine since scoring is free (no LLM involved).
+    # A single generic/secondary keyword mentioned once in the description
+    # (e.g. "aws" name-dropped in an unrelated sales posting) clears score>0
+    # but isn't a real match -- MIN_SCORE is calibrated so it requires at
+    # least one core-stack term (python, fastapi, aws lambda...) somewhere,
+    # or several secondary terms together. See matching.py for the weights.
+    MIN_SCORE = 13
     scored_jobs = []
     for job in new_jobs:
         score, matched_keywords = matching.score_job(job, config["keywords"])
-        if score <= 0:
+        if score < MIN_SCORE:
             continue
         job["match_score"] = score
         job["matched_keywords"] = matched_keywords
         scored_jobs.append(job)
 
     dynamo.write_jobs(TABLE_NAME, scored_jobs, ttl_seconds=TTL_DAYS * 86400)
-    print(f"[harvester] ({run}) wrote {len(scored_jobs)} jobs ({len(new_jobs) - len(scored_jobs)} dropped for zero score)")
+    print(f"[harvester] ({run}) wrote {len(scored_jobs)} jobs ({len(new_jobs) - len(scored_jobs)} dropped below score {MIN_SCORE})")
 
     return {
         "run": run,

@@ -26,17 +26,24 @@ JOOBLE_API_KEY_PARAM = f"{PARAM_PREFIX}/jooble-api-key"
 DASHBOARD_TOKEN_PARAM = f"{PARAM_PREFIX}/dashboard-token"
 
 # Baked into the stack since it's not sensitive -- edit here and redeploy to
-# tune matching. Kept in sync with Anderson's resume (Python/AWS backend).
-DEFAULT_STACK_KEYWORDS = [
-    "python", "flask", "fastapi", "django",
-    "aws", "lambda", "ecs", "fargate", "sqs", "eventbridge", "s3", "cloudwatch",
-    "celery", "polars", "pandas", "numpy",
-    "postgresql", "mysql", "supabase", "redis", "sqlalchemy", "sql", "etl",
-    "data engineer", "data engineering", "data pipeline",
-    "react", "next.js", "tailwind", "javascript", "typescript",
-    "docker", "github actions", "pytest", "ci/cd",
-    "backend", "rest api", "microservices",
+# tune matching. [term, weight] pairs: CORE (3) is the actual day job stack,
+# SECONDARY (2) is adjacent/strongly-related tech, NICE (1) is generic
+# signal that alone shouldn't carry a match (e.g. "backend" appears in every
+# posting regardless of language). A title hit counts 2x the weight.
+_CORE = ["python", "fastapi", "flask", "celery", "sqlalchemy", "aws lambda", "lambda", "postgresql"]
+_SECONDARY = [
+    "aws", "ecs", "fargate", "sqs", "eventbridge", "s3", "cloudwatch",
+    "django", "mysql", "supabase", "redis", "pandas", "polars", "numpy",
+    "sql", "etl", "engenheiro de dados", "data engineer", "data engineering", "data pipeline",
+    "docker", "pytest",
 ]
+_NICE = ["react", "next.js", "tailwind", "typescript", "javascript", "github actions", "ci/cd", "backend", "rest api", "microservices"]
+
+DEFAULT_STACK_KEYWORDS = (
+    [[term, 3] for term in _CORE]
+    + [[term, 2] for term in _SECONDARY]
+    + [[term, 1] for term in _NICE]
+)
 
 GSI_NAME = "ScoreIndex"
 TTL_DAYS = 50

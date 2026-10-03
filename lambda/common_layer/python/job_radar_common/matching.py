@@ -1,10 +1,13 @@
-"""Keyword-overlap match scoring. Zero cost, zero network calls, fully
-deterministic/explainable -- no LLM involved."""
+"""Weighted keyword-overlap match scoring. Zero cost, zero network calls,
+fully deterministic/explainable -- no LLM involved.
 
-TITLE_WEIGHT = 2
-DESCRIPTION_WEIGHT = 1
-# Distinct title-weighted keyword hits needed to reach a 100 score.
-MAX_SCORE_KEYWORDS = 8
+`keywords` is a list of [term, weight] pairs so core-stack terms (python,
+fastapi, aws lambda...) count for more than generic ones (backend, ci/cd...)
+that show up in almost every posting regardless of language/stack."""
+
+TITLE_MULTIPLIER = 2
+# Calibrated so ~2 solid core-weight (3) title hits reach 100.
+MAX_SCORE_POINTS = 24
 
 
 def score_job(job, keywords):
@@ -13,17 +16,16 @@ def score_job(job, keywords):
 
     matched = []
     points = 0
-    for keyword in keywords:
-        needle = keyword.lower()
+    for term, weight in keywords:
+        needle = term.lower()
         if not needle:
             continue
         if needle in title:
-            points += TITLE_WEIGHT
-            matched.append(keyword)
+            points += weight * TITLE_MULTIPLIER
+            matched.append(term)
         elif needle in description:
-            points += DESCRIPTION_WEIGHT
-            matched.append(keyword)
+            points += weight
+            matched.append(term)
 
-    max_points = MAX_SCORE_KEYWORDS * TITLE_WEIGHT
-    score = min(100, round(100 * points / max_points)) if max_points else 0
+    score = min(100, round(100 * points / MAX_SCORE_POINTS)) if MAX_SCORE_POINTS else 0
     return score, matched

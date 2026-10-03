@@ -32,31 +32,28 @@ def _html_response(status, body, extra_headers=None):
     }
 
 
-# Score-tier gradient, loosely modeled on Steam's dark UI (blue accent for
-# "good", green for "great", gold/orange fading down to muted gray).
 def _score_tier(score):
     if score >= 75:
-        return "tier-great"
+        return "great"
     if score >= 50:
-        return "tier-good"
+        return "good"
     if score >= 25:
-        return "tier-ok"
-    return "tier-low"
+        return "ok"
+    return "low"
 
 
-# One accent color per source, so the board reads at a glance.
 _SOURCE_COLORS = {
-    "remotive": "#66c0f4",
-    "remoteok": "#b388ff",
-    "arbeitnow": "#ff9e4a",
-    "adzuna": "#ff6b6b",
-    "gupy": "#ff6bb3",
-    "jooble": "#4adede",
+    "remotive": "#8b5cf6",
+    "remoteok": "#ec4899",
+    "arbeitnow": "#f59e0b",
+    "adzuna": "#ef4444",
+    "gupy": "#06b6d4",
+    "jooble": "#10b981",
 }
 
 
 def _source_color(source):
-    return _SOURCE_COLORS.get(source, "#8ea4c0")
+    return _SOURCE_COLORS.get(source, "#6b7280")
 
 
 def _card_html(job, token):
@@ -66,14 +63,13 @@ def _card_html(job, token):
     company = html.escape(job.get("company", ""))
     url = html.escape(job.get("url", ""), quote=True)
     keywords = job.get("matched_keywords", [])
-    keyword_pills = "".join(f"<span class='pill'>{html.escape(k)}</span>" for k in keywords)
+    keyword_pills = "".join(f"<span class='pill'>{html.escape(k)}</span>" for k in keywords[:6])
     source = job.get("source", "")
-    source_color = _source_color(source)
     posted = html.escape((job.get("posted_at") or "")[:10])
     status = job.get("status", "new")
 
     if status == "applied":
-        action_html = f"<span class='applied'>&#10003; Applied {html.escape((job.get('applied_at') or '')[:10])}</span>"
+        action_html = f"<span class='applied-tag'><svg viewBox='0 0 20 20' width='13' height='13'><path fill='currentColor' d='M7.5 13.5 3.8 9.8l1.4-1.4 2.3 2.3 6.3-6.3 1.4 1.4z'/></svg>Aplicada {html.escape((job.get('applied_at') or '')[:10])}</span>"
     else:
         job_id = html.escape(job.get("job_id", ""), quote=True)
         token_q = html.escape(token, quote=True)
@@ -81,35 +77,45 @@ def _card_html(job, token):
             f"<form method='POST' action='/'>"
             f"<input type='hidden' name='job_id' value='{job_id}'>"
             f"<input type='hidden' name='token' value='{token_q}'>"
-            f"<button type='submit' class='mark-btn'>Mark Applied</button>"
+            f"<button type='submit' class='btn-ghost'>Marcar aplicada</button>"
             f"</form>"
         )
 
     return f"""
-    <div class="card {tier}">
-      <div class="score-badge {tier}">{score}</div>
-      <div class="card-body">
-        <div class="card-top">
-          <div>
-            <div class="title">{title}</div>
-            <div class="company">{company}</div>
-          </div>
-          <span class="source-pill" style="background:{source_color}22;color:{source_color};border-color:{source_color}55">{html.escape(source)}</span>
-        </div>
-        <div class="keywords">{keyword_pills}</div>
-        <div class="card-bottom">
-          <span class="posted">{posted}</span>
-          <a class="apply-btn" href="{url}" target="_blank" rel="noopener">Apply &#8599;</a>
-          {action_html}
-        </div>
+    <article class="card">
+      <div class="score score-{tier}">
+        <span class="score-num">{score}</span>
       </div>
-    </div>
+      <div class="card-main">
+        <header class="card-head">
+          <div>
+            <h3 class="job-title">{title}</h3>
+            <div class="job-company">{company}</div>
+          </div>
+          <span class="source-tag" style="--dot:{_source_color(source)}">{html.escape(source)}</span>
+        </header>
+        {f'<div class="pills">{keyword_pills}</div>' if keyword_pills else ''}
+        <footer class="card-foot">
+          <time class="posted">{posted}</time>
+          <div class="actions">
+            {action_html}
+            <a class="btn-primary" href="{url}" target="_blank" rel="noopener">Candidatar <svg viewBox="0 0 20 20" width="13" height="13"><path fill="currentColor" d="M5 15 15 5M8 5h7v7" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></a>
+          </div>
+        </footer>
+      </div>
+    </article>
     """
 
 
 def _render_page(jobs, token, days):
-    cards = "".join(_card_html(job, token) for job in jobs)
+    cards = "".join(_card_html(job, token) for job in jobs) or (
+        "<div class='empty'>Nenhuma vaga encontrada nesse per&iacute;odo. "
+        "A harvester roda &agrave;s 08h e 18h &mdash; volte mais tarde.</div>"
+    )
     token_q = html.escape(token, quote=True)
+
+    applied_count = sum(1 for j in jobs if j.get("status") == "applied")
+    avg_score = round(sum(j.get("match_score", 0) for j in jobs) / len(jobs)) if jobs else 0
 
     def _day_tab(d, label):
         active = "active" if d == days else ""
@@ -123,102 +129,134 @@ def _render_page(jobs, token, days):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Job Radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {{
-    --bg-top: #1b2838;
-    --bg-bottom: #0f1620;
-    --card-bg: #223449;
-    --card-bg-hover: #2a3f5a;
-    --text: #c7d5e0;
-    --text-dim: #8ea4c0;
-    --blue: #66c0f4;
-    --green: #a4d007;
-    --gold: #e0ac00;
-    --gray: #5c7389;
+    --bg: #09090f;
+    --bg-radial: radial-gradient(circle at 15% 0%, rgba(124,110,242,.12), transparent 45%),
+                 radial-gradient(circle at 85% 20%, rgba(16,185,129,.08), transparent 40%);
+    --surface: #131319;
+    --surface-2: #1a1a22;
+    --border: #24242e;
+    --border-hover: #34344a;
+    --text: #f2f2f5;
+    --text-dim: #9999a8;
+    --text-faint: #68687a;
+    --accent: #7c6ef2;
+    --accent-2: #38bdf8;
+    --great: #34d399;
+    --good: #38bdf8;
+    --ok: #fbbf24;
+    --low: #6b7280;
+    --radius: 14px;
   }}
   * {{ box-sizing: border-box; }}
   body {{
-    font-family: 'Segoe UI', -apple-system, sans-serif;
-    background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg-radial), var(--bg);
     color: var(--text);
     margin: 0;
-    padding: 28px;
+    padding: 40px 20px 80px;
     min-height: 100vh;
   }}
-  h1 {{
-    font-size: 24px;
-    margin: 0 0 4px;
-    background: linear-gradient(90deg, var(--blue), var(--green));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-weight: 800;
+  .wrap {{ max-width: 760px; margin: 0 auto; }}
+  .top {{ display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; gap: 16px; flex-wrap: wrap; }}
+  .brand {{ display: flex; align-items: center; gap: 10px; }}
+  .dot {{
+    width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(124,110,242,.18);
   }}
-  .subtitle {{ color: var(--text-dim); font-size: 13px; margin-bottom: 18px; }}
-  .tabs {{ display: flex; gap: 8px; margin-bottom: 22px; }}
+  h1 {{ font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -.02em; }}
+  .stats {{ display: flex; gap: 10px; }}
+  .stat {{
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 14px; text-align: center; min-width: 76px;
+  }}
+  .stat .n {{ font-size: 17px; font-weight: 700; display: block; }}
+  .stat .l {{ font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }}
+  .tabs {{ display: inline-flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; margin-bottom: 20px; }}
   .tab {{
-    text-decoration: none; color: var(--text-dim); font-size: 13px;
-    padding: 6px 14px; border-radius: 999px; border: 1px solid #33516d;
-    transition: all .15s;
+    text-decoration: none; color: var(--text-dim); font-size: 13px; font-weight: 500;
+    padding: 6px 16px; border-radius: 8px; transition: all .15s;
   }}
-  .tab:hover {{ color: var(--text); border-color: var(--blue); }}
-  .tab.active {{ background: var(--blue); color: #0f1620; font-weight: 700; border-color: var(--blue); }}
+  .tab:hover {{ color: var(--text); }}
+  .tab.active {{ background: var(--accent); color: #fff; font-weight: 600; }}
   .grid {{ display: flex; flex-direction: column; gap: 10px; }}
+  .empty {{ color: var(--text-dim); font-size: 14px; padding: 40px 0; text-align: center; }}
   .card {{
-    display: flex; gap: 16px; align-items: stretch;
-    background: var(--card-bg);
-    border-left: 4px solid var(--gray);
-    border-radius: 8px;
-    padding: 14px 18px;
-    box-shadow: 0 2px 6px rgba(0,0,0,.25);
-    transition: transform .12s, background .12s;
+    display: flex; gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    transition: border-color .15s, transform .15s;
   }}
-  .card:hover {{ background: var(--card-bg-hover); transform: translateY(-1px); }}
-  .card.tier-great {{ border-left-color: var(--green); }}
-  .card.tier-good {{ border-left-color: var(--blue); }}
-  .card.tier-ok {{ border-left-color: var(--gold); }}
-  .score-badge {{
-    flex: 0 0 52px; display: flex; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 800; border-radius: 8px; color: #0f1620;
+  .card:hover {{ border-color: var(--border-hover); transform: translateY(-1px); }}
+  .score {{
+    flex: 0 0 50px; height: 50px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px;
   }}
-  .score-badge.tier-great {{ background: linear-gradient(160deg, var(--green), #6b8e00); }}
-  .score-badge.tier-good {{ background: linear-gradient(160deg, var(--blue), #1a7fc4); color: #08141c; }}
-  .score-badge.tier-ok {{ background: linear-gradient(160deg, var(--gold), #a37300); }}
-  .score-badge.tier-low {{ background: linear-gradient(160deg, var(--gray), #3c4f61); color: #dfe8ef; }}
-  .card-body {{ flex: 1; min-width: 0; }}
-  .card-top {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }}
-  .title {{ font-weight: 700; font-size: 15px; color: #fff; }}
-  .company {{ color: var(--text-dim); font-size: 13px; margin-top: 2px; }}
-  .source-pill {{
-    font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
-    padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap;
+  .score-great {{ background: rgba(52,211,153,.14); color: var(--great); }}
+  .score-good  {{ background: rgba(56,189,248,.14); color: var(--good); }}
+  .score-ok    {{ background: rgba(251,191,36,.14); color: var(--ok); }}
+  .score-low   {{ background: rgba(107,114,128,.14); color: var(--low); }}
+  .card-main {{ flex: 1; min-width: 0; }}
+  .card-head {{ display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }}
+  .job-title {{ font-size: 15px; font-weight: 650; margin: 0; color: var(--text); line-height: 1.35; }}
+  .job-company {{ font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }}
+  .source-tag {{
+    flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+    display: flex; align-items: center; gap: 5px; padding-top: 3px;
   }}
-  .keywords {{ margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }}
+  .source-tag::before {{ content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); }}
+  .pills {{ margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }}
   .pill {{
-    font-size: 11px; background: #ffffff14; color: var(--text-dim);
-    padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 500; background: var(--surface-2); color: var(--text-dim);
+    padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border);
   }}
-  .card-bottom {{ margin-top: 12px; display: flex; align-items: center; gap: 12px; }}
-  .posted {{ font-size: 12px; color: var(--text-dim); margin-right: auto; }}
-  .apply-btn {{
-    text-decoration: none; background: var(--blue); color: #08141c;
-    font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 6px;
-  }}
-  .apply-btn:hover {{ background: #8ad4ff; }}
-  .mark-btn {{
-    cursor: pointer; background: transparent; color: var(--text-dim);
-    border: 1px solid #33516d; font-size: 13px; padding: 6px 12px; border-radius: 6px;
-  }}
-  .mark-btn:hover {{ border-color: var(--green); color: var(--green); }}
-  .applied {{ color: var(--green); font-size: 13px; font-weight: 600; }}
+  .card-foot {{ margin-top: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }}
+  .posted {{ font-size: 11.5px; color: var(--text-faint); }}
+  .actions {{ display: flex; align-items: center; gap: 8px; margin-left: auto; }}
   form {{ margin: 0; }}
+  .btn-primary {{
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; background: var(--accent); color: #fff;
+    font-weight: 600; font-size: 12.5px; padding: 7px 14px; border-radius: 8px;
+    transition: background .15s;
+  }}
+  .btn-primary:hover {{ background: #8f82f5; }}
+  .btn-ghost {{
+    cursor: pointer; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); font-size: 12.5px; font-weight: 500;
+    padding: 7px 13px; border-radius: 8px; transition: all .15s; font-family: inherit;
+  }}
+  .btn-ghost:hover {{ border-color: var(--great); color: var(--great); }}
+  .applied-tag {{
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--great); font-size: 12.5px; font-weight: 600;
+  }}
 </style>
 </head>
 <body>
-  <h1>Job Radar</h1>
-  <div class="subtitle">{len(jobs)} vagas nos &uacute;ltimos {days} dias</div>
-  <div class="tabs">{tabs}</div>
-  <div class="grid">{cards}</div>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <span class="dot"></span>
+        <h1>Job Radar</h1>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="n">{len(jobs)}</span><span class="l">Vagas</span></div>
+        <div class="stat"><span class="n">{avg_score}</span><span class="l">Score m&eacute;dio</span></div>
+        <div class="stat"><span class="n">{applied_count}</span><span class="l">Aplicadas</span></div>
+      </div>
+    </div>
+    <div class="tabs">{tabs}</div>
+    <div class="grid">{cards}</div>
+  </div>
 </body>
 </html>"""
 
