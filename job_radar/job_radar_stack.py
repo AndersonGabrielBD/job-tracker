@@ -36,8 +36,13 @@ _SECONDARY = [
     "django", "mysql", "supabase", "redis", "pandas", "polars", "numpy",
     "sql", "etl", "engenheiro de dados", "data engineer", "data engineering", "data pipeline",
     "docker", "pytest",
+    # Backend/general-software signal, weighted the same as the data-eng
+    # terms above so a plain "Backend Engineer" posting isn't systematically
+    # out-scored by "Engenheiro de Dados" ones -- keep this flexible across
+    # both, not biased toward either.
+    "backend", "desenvolvedor backend", "backend developer", "engenheiro de software", "software engineer",
 ]
-_NICE = ["react", "next.js", "tailwind", "typescript", "javascript", "github actions", "ci/cd", "backend", "rest api", "microservices"]
+_NICE = ["react", "next.js", "tailwind", "typescript", "javascript", "github actions", "ci/cd", "rest api", "microservices"]
 
 DEFAULT_STACK_KEYWORDS = (
     [[term, 3] for term in _CORE]

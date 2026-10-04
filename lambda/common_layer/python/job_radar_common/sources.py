@@ -15,18 +15,21 @@ HTTP_TIMEOUT = 15
 
 REMOTE_TEXT_HINTS = ("remote", "remoto", "home office", "home-office", "anywhere", "worldwide")
 
-# Search terms used against Gupy/Jooble/Adzuna. Deliberately narrow and
-# stack-specific -- generic terms like "desenvolvedor"/"backend" pull in
-# every Java/.NET/PHP/Salesforce/Delphi posting on the board. Python is the
-# primary focus, with data engineering and React/JS as secondary interests.
+# Search terms used against Gupy/Jooble/Adzuna. Still stack-specific enough
+# to avoid pulling in every Java/.NET/PHP/Salesforce/Delphi posting on the
+# board, but deliberately balanced between plain backend/software roles and
+# data engineering ones -- not just the latter. Python stays the throughline,
+# React/JS stays a secondary interest.
 STACK_SEARCH_TERMS = (
     "python",
     "python backend",
+    "desenvolvedor backend",
+    "engenheiro de software",
     "engenheiro de dados",
     "data engineer",
     "desenvolvedor react",
 )
-ADZUNA_WHAT_OR = "python python-backend engenheiro-de-dados data-engineer react"
+ADZUNA_WHAT_OR = "python python-backend desenvolvedor-backend engenheiro-de-software engenheiro-de-dados data-engineer react"
 
 
 def _get_json(url, headers=None):
