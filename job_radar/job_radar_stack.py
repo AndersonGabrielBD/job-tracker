@@ -26,14 +26,22 @@ JOOBLE_API_KEY_PARAM = f"{PARAM_PREFIX}/jooble-api-key"
 DASHBOARD_TOKEN_PARAM = f"{PARAM_PREFIX}/dashboard-token"
 
 # Baked into the stack since it's not sensitive -- edit here and redeploy to
-# tune matching. [term, weight] pairs: CORE (3) is the actual day job stack,
-# SECONDARY (2) is adjacent/strongly-related tech, NICE (1) is generic
-# signal that alone shouldn't carry a match (e.g. "backend" appears in every
-# posting regardless of language). A title hit counts 2x the weight.
-_CORE = ["python", "fastapi", "flask", "celery", "sqlalchemy", "aws lambda", "lambda", "postgresql"]
+# tune matching. [term, weight] pairs: CORE (3) is the actual day job stack
+# -- python backend (incl. data engineering) and javascript/react/typescript,
+# the only stacks we actually want -- SECONDARY (2) is adjacent/supporting
+# tech, NICE (1) is generic signal that alone shouldn't carry a match (e.g.
+# "backend" appears in every posting regardless of language). A title hit
+# counts 2x the weight. matching.ANCHOR_TERMS mirrors the CORE list below --
+# a job only scores if one of those actually matched, so generic
+# SECONDARY/NICE overlap alone (aws, docker, ci/cd...) can't clear the bar.
+_CORE = [
+    "python", "fastapi", "flask", "django", "celery", "sqlalchemy",
+    "aws lambda", "lambda", "postgresql",
+    "javascript", "typescript", "react", "next.js",
+]
 _SECONDARY = [
     "aws", "ecs", "fargate", "sqs", "eventbridge", "s3", "cloudwatch",
-    "django", "mysql", "supabase", "redis", "pandas", "polars", "numpy",
+    "mysql", "supabase", "redis", "pandas", "polars", "numpy",
     "sql", "etl", "engenheiro de dados", "data engineer", "data engineering", "data pipeline",
     "docker", "pytest",
     # Backend/general-software signal, weighted the same as the data-eng
@@ -42,7 +50,7 @@ _SECONDARY = [
     # both, not biased toward either.
     "backend", "desenvolvedor backend", "backend developer", "engenheiro de software", "software engineer",
 ]
-_NICE = ["react", "next.js", "tailwind", "typescript", "javascript", "github actions", "ci/cd", "rest api", "microservices"]
+_NICE = ["tailwind", "github actions", "ci/cd", "rest api", "microservices"]
 
 DEFAULT_STACK_KEYWORDS = (
     [[term, 3] for term in _CORE]

@@ -2,7 +2,7 @@ import json
 import os
 
 import boto3
-from job_radar_common import dynamo, location, matching, seniority, sources
+from job_radar_common import dynamo, location, matching, seniority, sources, stack_gate
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 TTL_DAYS = int(os.environ.get("TTL_DAYS", "50"))
@@ -85,9 +85,12 @@ def handler(event, context):
 
     in_scope = [
         job for job in raw_jobs
-        if location.is_in_scope(job) and not seniority.is_senior(job.get("title"))
+        if location.is_in_scope(job)
+        and not seniority.is_senior(job.get("title"))
+        and not stack_gate.is_other_stack(job.get("title"), job.get("description"))
+        and not stack_gate.is_qa_role(job.get("title"))
     ]
-    print(f"[harvester] ({run}) {len(in_scope)}/{len(raw_jobs)} jobs passed the location/seniority gate")
+    print(f"[harvester] ({run}) {len(in_scope)}/{len(raw_jobs)} jobs passed the location/seniority/stack gate")
 
     existing_ids = dynamo.filter_existing_ids(TABLE_NAME, (job["job_id"] for job in in_scope))
     new_jobs = [job for job in in_scope if job["job_id"] not in existing_ids]
