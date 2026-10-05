@@ -48,12 +48,22 @@ def write_jobs(table_name, jobs, ttl_seconds):
             batch.put_item(Item=item)
 
 
-def query_jobs(table_name, index_name, since_iso, limit=200):
+def query_jobs(table_name, index_name, since_iso, date_field="posted_at", status=None,
+               show_disqualified=False, limit=200):
     table = _table(table_name)
+
+    filter_expr = Attr(date_field).gte(since_iso)
+    if status in ("new", "applied"):
+        filter_expr = filter_expr & Attr("status").eq(status)
+    if not show_disqualified:
+        filter_expr = filter_expr & (
+            Attr("is_disqualified").not_exists() | Attr("is_disqualified").eq(False)
+        )
+
     response = table.query(
         IndexName=index_name,
         KeyConditionExpression=Key("gsi_pk").eq(GSI_PK_VALUE),
-        FilterExpression=Attr("posted_at").gte(since_iso),
+        FilterExpression=filter_expr,
         ScanIndexForward=False,
         Limit=limit,
     )
@@ -68,4 +78,14 @@ def mark_applied(table_name, job_id, applied_at_iso):
         ConditionExpression="attribute_exists(job_id)",
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={":applied": "applied", ":at": applied_at_iso},
+    )
+
+
+def mark_disqualified(table_name, job_id, disqualified_at_iso):
+    table = _table(table_name)
+    table.update_item(
+        Key={"job_id": job_id},
+        UpdateExpression="SET is_disqualified = :true, disqualified_at = :at",
+        ConditionExpression="attribute_exists(job_id)",
+        ExpressionAttributeValues={":true": True, ":at": disqualified_at_iso},
     )

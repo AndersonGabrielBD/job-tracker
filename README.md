@@ -65,8 +65,18 @@ código e rode `cdk deploy` de novo.
 
 ## Usar o dashboard
 
-Abra `<DashboardUrl>?token=<seu dashboard-token>` no navegador. Dá pra trocar a janela de dias
-visível com `&days=30`. Salve nos favoritos.
+Abra `<DashboardUrl>?token=<seu dashboard-token>` no navegador. Salve nos favoritos.
+
+Direto na página tem um painel de filtros:
+- **Status**: todas / não aplicadas / aplicadas.
+- **Filtrar por**: escolhe se a janela de dias olha a data de publicação (`posted_at`) ou a
+  data em que a vaga chegou no app pelo harvester (`fetched_at`).
+- **Últimos N dias**: input numérico livre (não só os presets 3/7/30).
+- **Mostrar desqualificadas**: por padrão vagas marcadas como "Desqualificar" ficam escondidas.
+
+Cada vaga tem um botão **Desqualificar**, além do "Marcar aplicada" — fica salvo no Dynamo
+(`is_disqualified` + `disqualified_at`) para a gente poder usar esse sinal depois pra melhorar
+os filtros de matching.
 
 ## Desenvolvimento local
 

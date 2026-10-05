@@ -56,7 +56,22 @@ def _source_color(source):
     return _SOURCE_COLORS.get(source, "#6b7280")
 
 
-def _card_html(job, token):
+def _action_form(job_id, token, return_qs, action, label, css_class):
+    job_id_q = html.escape(job_id, quote=True)
+    token_q = html.escape(token, quote=True)
+    return_qs_q = html.escape(return_qs, quote=True)
+    return (
+        f"<form method='POST' action='/'>"
+        f"<input type='hidden' name='job_id' value='{job_id_q}'>"
+        f"<input type='hidden' name='token' value='{token_q}'>"
+        f"<input type='hidden' name='return_qs' value='{return_qs_q}'>"
+        f"<input type='hidden' name='action' value='{action}'>"
+        f"<button type='submit' class='{css_class}'>{label}</button>"
+        f"</form>"
+    )
+
+
+def _card_html(job, token, return_qs):
     score = job.get("match_score", 0)
     tier = _score_tier(score)
     title = html.escape(job.get("title", ""))
@@ -66,20 +81,22 @@ def _card_html(job, token):
     keyword_pills = "".join(f"<span class='pill'>{html.escape(k)}</span>" for k in keywords[:6])
     source = job.get("source", "")
     posted = html.escape((job.get("posted_at") or "")[:10])
+    fetched = html.escape((job.get("fetched_at") or "")[:10])
     status = job.get("status", "new")
+    is_disqualified = bool(job.get("is_disqualified"))
+    job_id = job.get("job_id", "")
 
+    tags_html = ""
     if status == "applied":
-        action_html = f"<span class='applied-tag'><svg viewBox='0 0 20 20' width='13' height='13'><path fill='currentColor' d='M7.5 13.5 3.8 9.8l1.4-1.4 2.3 2.3 6.3-6.3 1.4 1.4z'/></svg>Aplicada {html.escape((job.get('applied_at') or '')[:10])}</span>"
-    else:
-        job_id = html.escape(job.get("job_id", ""), quote=True)
-        token_q = html.escape(token, quote=True)
-        action_html = (
-            f"<form method='POST' action='/'>"
-            f"<input type='hidden' name='job_id' value='{job_id}'>"
-            f"<input type='hidden' name='token' value='{token_q}'>"
-            f"<button type='submit' class='btn-ghost'>Marcar aplicada</button>"
-            f"</form>"
-        )
+        tags_html += f"<span class='applied-tag'><svg viewBox='0 0 20 20' width='13' height='13'><path fill='currentColor' d='M7.5 13.5 3.8 9.8l1.4-1.4 2.3 2.3 6.3-6.3 1.4 1.4z'/></svg>Aplicada {html.escape((job.get('applied_at') or '')[:10])}</span>"
+    if is_disqualified:
+        tags_html += f"<span class='disqualified-tag'>Desqualificada {html.escape((job.get('disqualified_at') or '')[:10])}</span>"
+
+    action_buttons = ""
+    if status != "applied":
+        action_buttons += _action_form(job_id, token, return_qs, "apply", "Marcar aplicada", "btn-ghost")
+    if not is_disqualified:
+        action_buttons += _action_form(job_id, token, return_qs, "disqualify", "Desqualificar", "btn-danger")
 
     return f"""
     <article class="card">
@@ -95,10 +112,14 @@ def _card_html(job, token):
           <span class="source-tag" style="--dot:{_source_color(source)}">{html.escape(source)}</span>
         </header>
         {f'<div class="pills">{keyword_pills}</div>' if keyword_pills else ''}
+        {f'<div class="tags">{tags_html}</div>' if tags_html else ''}
         <footer class="card-foot">
-          <time class="posted">{posted}</time>
+          <div class="dates">
+            <time class="posted" title="Publicada">Publicada {posted}</time>
+            <time class="fetched" title="Chegou no app">Chegou {fetched}</time>
+          </div>
           <div class="actions">
-            {action_html}
+            {action_buttons}
             <a class="btn-primary" href="{url}" target="_blank" rel="noopener">Candidatar <svg viewBox="0 0 20 20" width="13" height="13"><path fill="currentColor" d="M5 15 15 5M8 5h7v7" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></a>
           </div>
         </footer>
@@ -107,21 +128,78 @@ def _card_html(job, token):
     """
 
 
-def _render_page(jobs, token, days):
-    cards = "".join(_card_html(job, token) for job in jobs) or (
-        "<div class='empty'>Nenhuma vaga encontrada nesse per&iacute;odo. "
-        "A harvester roda &agrave;s 08h e 18h &mdash; volte mais tarde.</div>"
-    )
+def _render_page(jobs, token, filters):
+    days = filters["days"]
+    date_field = filters["date_field"]
+    status = filters["status"]
+    show_disqualified = filters["show_disqualified"]
+
     token_q = html.escape(token, quote=True)
 
+    return_qs = urllib.parse.urlencode({
+        "token": token,
+        "days": days,
+        "date_field": date_field,
+        "status": status,
+        "show_disqualified": "1" if show_disqualified else "0",
+    })
+
+    cards = "".join(_card_html(job, token, return_qs) for job in jobs) or (
+        "<div class='empty'>Nenhuma vaga encontrada com esses filtros. "
+        "A harvester roda &agrave;s 08h e 18h &mdash; volte mais tarde.</div>"
+    )
+
     applied_count = sum(1 for j in jobs if j.get("status") == "applied")
+    disqualified_count = sum(1 for j in jobs if j.get("is_disqualified"))
     avg_score = round(sum(j.get("match_score", 0) for j in jobs) / len(jobs)) if jobs else 0
 
     def _day_tab(d, label):
         active = "active" if d == days else ""
-        return f"<a class='tab {active}' href='/?token={token_q}&days={d}'>{label}</a>"
+        qs = urllib.parse.urlencode({
+            "token": token, "days": d, "date_field": date_field,
+            "status": status, "show_disqualified": "1" if show_disqualified else "0",
+        })
+        return f"<a class='tab {active}' href='/?{qs}'>{label}</a>"
 
     tabs = _day_tab(3, "3 dias") + _day_tab(7, "7 dias") + _day_tab(30, "30 dias")
+
+    def _option(value, label, current):
+        selected = "selected" if value == current else ""
+        return f"<option value='{value}' {selected}>{label}</option>"
+
+    status_options = (
+        _option("all", "Todas", status)
+        + _option("new", "N&atilde;o aplicadas", status)
+        + _option("applied", "Aplicadas", status)
+    )
+    date_field_options = (
+        _option("posted_at", "Data de publica&ccedil;&atilde;o", date_field)
+        + _option("fetched_at", "Data que chegou no app", date_field)
+    )
+    show_disqualified_checked = "checked" if show_disqualified else ""
+
+    filters_html = f"""
+    <form class="filters" method="GET" action="/">
+      <input type="hidden" name="token" value="{token_q}">
+      <div class="filter-group">
+        <label>Status</label>
+        <select name="status">{status_options}</select>
+      </div>
+      <div class="filter-group">
+        <label>Filtrar por</label>
+        <select name="date_field">{date_field_options}</select>
+      </div>
+      <div class="filter-group">
+        <label>&Uacute;ltimos N dias</label>
+        <input type="number" name="days" min="1" max="365" value="{days}">
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" name="show_disqualified" value="1" {show_disqualified_checked}>
+        Mostrar desqualificadas
+      </label>
+      <button type="submit" class="btn-primary">Filtrar</button>
+    </form>
+    """
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -218,8 +296,9 @@ def _render_page(jobs, token, days):
     font-size: 11px; font-weight: 500; background: var(--surface-2); color: var(--text-dim);
     padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border);
   }}
-  .card-foot {{ margin-top: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }}
-  .posted {{ font-size: 11.5px; color: var(--text-faint); }}
+  .card-foot {{ margin-top: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }}
+  .dates {{ display: flex; flex-direction: column; gap: 2px; }}
+  .posted, .fetched {{ font-size: 11.5px; color: var(--text-faint); }}
   .actions {{ display: flex; align-items: center; gap: 8px; margin-left: auto; }}
   form {{ margin: 0; }}
   .btn-primary {{
@@ -235,10 +314,38 @@ def _render_page(jobs, token, days):
     padding: 7px 13px; border-radius: 8px; transition: all .15s; font-family: inherit;
   }}
   .btn-ghost:hover {{ border-color: var(--great); color: var(--great); }}
+  .btn-danger {{
+    cursor: pointer; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); font-size: 12.5px; font-weight: 500;
+    padding: 7px 13px; border-radius: 8px; transition: all .15s; font-family: inherit;
+  }}
+  .btn-danger:hover {{ border-color: #f87171; color: #f87171; }}
   .applied-tag {{
     display: inline-flex; align-items: center; gap: 5px;
     color: var(--great); font-size: 12.5px; font-weight: 600;
   }}
+  .disqualified-tag {{
+    display: inline-flex; align-items: center; gap: 5px;
+    color: #f87171; font-size: 12.5px; font-weight: 600;
+  }}
+  .tags {{ margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }}
+  .filters {{
+    display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 16px;
+  }}
+  .filter-group {{ display: flex; flex-direction: column; gap: 5px; }}
+  .filter-group label {{ font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }}
+  .filters select, .filters input[type="number"] {{
+    background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit;
+  }}
+  .filters input[type="number"] {{ width: 90px; }}
+  .checkbox {{
+    display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-dim);
+    padding-bottom: 8px;
+  }}
+  .filters .btn-primary {{ cursor: pointer; border: none; font-family: inherit; }}
 </style>
 </head>
 <body>
@@ -252,8 +359,10 @@ def _render_page(jobs, token, days):
         <div class="stat"><span class="n">{len(jobs)}</span><span class="l">Vagas</span></div>
         <div class="stat"><span class="n">{avg_score}</span><span class="l">Score m&eacute;dio</span></div>
         <div class="stat"><span class="n">{applied_count}</span><span class="l">Aplicadas</span></div>
+        <div class="stat"><span class="n">{disqualified_count}</span><span class="l">Desqualif.</span></div>
       </div>
     </div>
+    {filters_html}
     <div class="tabs">{tabs}</div>
     <div class="grid">{cards}</div>
   </div>
@@ -262,11 +371,36 @@ def _render_page(jobs, token, days):
 
 
 def _handle_get(query):
-    days = int(query.get("days") or DEFAULT_DAYS)
+    days_raw = query.get("days") or str(DEFAULT_DAYS)
+    try:
+        days = int(days_raw)
+    except ValueError:
+        days = DEFAULT_DAYS
+    days = min(max(days, 1), 365)
+
+    date_field = query.get("date_field") or "posted_at"
+    if date_field not in ("posted_at", "fetched_at"):
+        date_field = "posted_at"
+
+    status = query.get("status") or "all"
+    if status not in ("all", "new", "applied"):
+        status = "all"
+
+    show_disqualified = query.get("show_disqualified") == "1"
+
     since_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    jobs = dynamo.query_jobs(TABLE_NAME, GSI_NAME, since_iso)
+    jobs = dynamo.query_jobs(
+        TABLE_NAME, GSI_NAME, since_iso,
+        date_field=date_field, status=status, show_disqualified=show_disqualified,
+    )
     token = query.get("token", "")
-    return _html_response(200, _render_page(jobs, token, days))
+    filters = {
+        "days": days,
+        "date_field": date_field,
+        "status": status,
+        "show_disqualified": show_disqualified,
+    }
+    return _html_response(200, _render_page(jobs, token, filters))
 
 
 def _parse_body(event):
@@ -279,13 +413,20 @@ def _parse_body(event):
 def _handle_post(fields):
     job_id = (fields.get("job_id") or [""])[0]
     token = (fields.get("token") or [""])[0]
+    action = (fields.get("action") or ["apply"])[0]
+    return_qs = (fields.get("return_qs") or [""])[0]
 
     if not job_id:
         return _html_response(400, "missing job_id")
 
-    dynamo.mark_applied(TABLE_NAME, job_id, datetime.now(timezone.utc).isoformat())
-    redirect_qs = urllib.parse.urlencode({"token": token})
-    return {"statusCode": 302, "headers": {"Location": f"/?{redirect_qs}"}, "body": ""}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if action == "disqualify":
+        dynamo.mark_disqualified(TABLE_NAME, job_id, now_iso)
+    else:
+        dynamo.mark_applied(TABLE_NAME, job_id, now_iso)
+
+    location = f"/?{return_qs}" if return_qs else f"/?{urllib.parse.urlencode({'token': token})}"
+    return {"statusCode": 302, "headers": {"Location": location}, "body": ""}
 
 
 def handler(event, context):
