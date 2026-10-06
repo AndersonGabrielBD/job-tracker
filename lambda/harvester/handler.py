@@ -96,28 +96,24 @@ def handler(event, context):
     new_jobs = [job for job in in_scope if job["job_id"] not in existing_ids]
     print(f"[harvester] ({run}) {len(new_jobs)} new jobs (already seen: {len(existing_ids)})")
 
-    # A single generic/secondary keyword mentioned once in the description
-    # (e.g. "aws" name-dropped in an unrelated sales posting) clears score>0
-    # but isn't a real match -- MIN_SCORE is calibrated so it requires at
-    # least one core-stack term (python, fastapi, aws lambda...) somewhere,
-    # or several secondary terms together. See matching.py for the weights.
-    MIN_SCORE = 13
-    scored_jobs = []
+    # No score cutoff here on purpose: stack_gate above already drops the
+    # unambiguous noise (.NET/C#/Java/PHP/QA), and anything generic enough
+    # to be ambiguous (plain "Desenvolvedor"/"Analista"/"Engenheiro de
+    # Software" postings) is cheap to skim and dismiss from the dashboard --
+    # cheaper than risking a real match getting silently dropped here.
+    # match_score is kept purely to sort the dashboard by relevance.
     for job in new_jobs:
         score, matched_keywords = matching.score_job(job, config["keywords"])
-        if score < MIN_SCORE:
-            continue
         job["match_score"] = score
         job["matched_keywords"] = matched_keywords
-        scored_jobs.append(job)
 
-    dynamo.write_jobs(TABLE_NAME, scored_jobs, ttl_seconds=TTL_DAYS * 86400)
-    print(f"[harvester] ({run}) wrote {len(scored_jobs)} jobs ({len(new_jobs) - len(scored_jobs)} dropped below score {MIN_SCORE})")
+    dynamo.write_jobs(TABLE_NAME, new_jobs, ttl_seconds=TTL_DAYS * 86400)
+    print(f"[harvester] ({run}) wrote {len(new_jobs)} jobs")
 
     return {
         "run": run,
         "fetched": fetch_counts,
         "in_scope": len(in_scope),
         "new": len(new_jobs),
-        "written": len(scored_jobs),
+        "written": len(new_jobs),
     }
