@@ -8,7 +8,8 @@ clicar no link de aplicar. Custo-alvo: ~$0/mês.
 
 - **AWS CDK** (Python) provisiona tudo em [`job_radar/job_radar_stack.py`](job_radar/job_radar_stack.py).
 - A **Harvester Lambda** ([`lambda/harvester/handler.py`](lambda/harvester/handler.py)) busca
-  vagas em 6 fontes (Remotive, RemoteOK, Arbeitnow, Adzuna, Gupy, Jooble), filtra por escopo
+  vagas em 5 fontes (Remotive, Arbeitnow, Adzuna, Gupy, Jooble -- RemoteOK removida, é
+  paga pra aplicar), filtra por escopo
   (remoto em qualquer lugar, ou Brasil remoto/presencial em Maceió), deduplica contra o que já
   foi visto, pontua por overlap de keywords (sem LLM, zero custo) e grava no DynamoDB.
 - Duas **EventBridge rules** disparam a harvester às 08:00 e 18:00 (America/Sao_Paulo).

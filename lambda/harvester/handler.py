@@ -103,9 +103,9 @@ def handler(event, context):
     # dashboard -- cheaper than risking a real match getting silently
     # dropped here. But score==0 means literally zero keyword overlap --
     # remote/BR postings with no tech signal at all (e.g. "Açougueiro"
-    # slipping through remoteok/arbeitnow's unfiltered feeds) -- so that
-    # floor still applies. match_score is otherwise kept purely to sort the
-    # dashboard by relevance.
+    # slipping through arbeitnow's unfiltered feed) -- so that floor still
+    # applies. match_score is otherwise kept purely to sort the dashboard
+    # by relevance.
     scored_jobs = []
     for job in new_jobs:
         score, matched_keywords = matching.score_job(job, config["keywords"])

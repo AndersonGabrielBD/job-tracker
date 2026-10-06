@@ -10,7 +10,7 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def strip_html(text):
-    """Best-effort HTML-to-text for sources (Remotive, RemoteOK, Arbeitnow, Gupy)
+    """Best-effort HTML-to-text for sources (Remotive, Arbeitnow, Gupy)
     that return description as HTML markup."""
     if not text:
         return ""

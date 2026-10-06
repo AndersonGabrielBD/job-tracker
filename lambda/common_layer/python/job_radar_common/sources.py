@@ -72,26 +72,6 @@ def fetch_remotive():
     return jobs
 
 
-def fetch_remoteok():
-    data = _get_json("https://remoteok.com/api")
-    jobs = []
-    for raw in data:
-        if not raw.get("id") or "position" not in raw:
-            continue  # first item is a legal-notice record, not a job
-        jobs.append(schema.make_job(
-            source="remoteok",
-            external_id=raw.get("id"),
-            title=raw.get("position"),
-            company=raw.get("company"),
-            url=raw.get("url") or raw.get("apply_url"),
-            location_raw=raw.get("location"),
-            is_remote=True,
-            description=raw.get("description"),
-            posted_at=raw.get("date"),
-        ))
-    return jobs
-
-
 def fetch_arbeitnow():
     data = _get_json("https://www.arbeitnow.com/api/job-board-api")
     jobs = []
@@ -243,4 +223,4 @@ def fetch_jooble(api_key):
 
 
 # Sources that need no credentials.
-OPEN_SOURCES = (fetch_remotive, fetch_remoteok, fetch_arbeitnow)
+OPEN_SOURCES = (fetch_remotive, fetch_arbeitnow)
